@@ -96,6 +96,32 @@ class MainTest(unittest.TestCase):
     assert cirq.linalg.allclose_up_to_global_phase(
         result.state_vector(), cirq_result.state_vector())
 
+  def test_cirq_qsim_run():
+    # Pick qubits.
+    a, b, c, d = [
+        cirq.GridQubit(0, 0),
+        cirq.GridQubit(0, 1),
+        cirq.GridQubit(1, 1),
+        cirq.GridQubit(1, 0)
+    ]
+
+    # Create a circuit
+    cirq_circuit = cirq.Circuit(
+        cirq.X(a)**0.5,  # Square root of X.
+        cirq.Y(b)**0.5,  # Square root of Y.
+        cirq.Z(c),  # Z.
+        cirq.CZ(a, d),  # ControlZ.
+        # measure qubits
+        cirq.measure(a, key='ma'),
+        cirq.measure(b, key='mb'),
+        cirq.measure(c, key='mc'),
+        cirq.measure(d, key='md'),
+    )
+
+    qsimSim = qsimcirq.QSimSimulator()
+    result = qsimSim.run(cirq_circuit, repetitions=5)
+    print(result)
+
   def test_matrix1_gate(self):
     q = cirq.LineQubit(0)
     m = np.array([[1, 1j], [1j, 1]]) * np.sqrt(0.5)

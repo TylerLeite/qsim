@@ -23,6 +23,7 @@ from cirq import (
   value,
   SimulatesAmplitudes,
   SimulatesFinalState,
+  SimulatesSamples,
 )
 
 import numpy as np
@@ -31,7 +32,7 @@ from qsimcirq import qsim
 import qsimcirq.qsim_circuit as qsimc
 
 
-class QSimSimulatorState(sim.WaveFunctionSimulatorState):
+class QSimSimulatorState(sim.StateVectorSimulatorState):
 
     def __init__(self,
                  qsim_data: np.ndarray,
@@ -40,8 +41,8 @@ class QSimSimulatorState(sim.WaveFunctionSimulatorState):
       super().__init__(state_vector=state_vector, qubit_map=qubit_map)
 
 
-class QSimSimulatorTrialResult(sim.WaveFunctionTrialResult):
-    
+class QSimSimulatorTrialResult(sim.StateVectorTrialResult):
+
     def __init__(self,
                  params: study.ParamResolver,
                  measurements: Dict[str, np.ndarray],
@@ -51,7 +52,7 @@ class QSimSimulatorTrialResult(sim.WaveFunctionTrialResult):
                        final_simulator_state=final_simulator_state)
 
 
-class QSimSimulator(SimulatesAmplitudes, SimulatesFinalState):
+class QSimSimulator(SimulatesSamples, SimulatesAmplitudes, SimulatesFinalState):
 
   def __init__(self, qsim_options: dict = {}):
     if any(k in qsim_options for k in ('c', 'i')):
@@ -61,6 +62,141 @@ class QSimSimulator(SimulatesAmplitudes, SimulatesFinalState):
     self.qsim_options = {'t': 1, 'v': 0}
     self.qsim_options.update(qsim_options)
     return
+
+  def _run(
+        self,
+        program: circuits.Circuit,
+        param_resolver: study.ParamResolver,
+        repetitions: int
+    ) -> Dict[str, np.ndarray]:
+      """Run a simulation, mimicking quantum hardware.
+
+      Args:
+          program: The circuit to simulate.
+          param_resolver: Parameters to run with the program.
+          repetitions: Number of times to repeat the run.
+
+      Returns:
+          A dictionary from measurement gate key to measurement
+          results. Measurement results are stored in a 2-dimensional
+          numpy array, the first dimension corresponding to the repetition
+          and the second to the actual boolean measurement results (ordered
+          by the qubits being measured.)
+      """
+    param_resolver = param_resolver or study.ParamResolver({})
+    solved_circuit = protocols.resolve_parameters(program, param_resolver)
+
+    return self._sample_measurement_ops(solved_circuit, repetitions)
+
+  def _sample_measurement_ops(
+      self,
+      program: circuits.Circuit,
+      repetitions: int = 1,
+    ) -> Dict[str, np.ndarray]:
+      """Samples from the circuit at all measurement gates.
+
+      All MeasurementGates must be terminal.
+      Note that this does not collapse the wave function.
+
+      Args:
+          program: The circuit to sample from.
+          repetitions: The number of samples to take.
+
+      Returns:
+          A dictionary from measurement gate key to measurement
+          results. Measurement results are stored in a 2-dimensional
+          numpy array, the first dimension corresponding to the repetition
+          and the second to the actual boolean measurement results (ordered
+          by the qubits being measured.)
+      Raises:
+          NotImplementedError: If there are non-terminal measurements in the
+              circuit.
+          ValueError: If there are multiple MeasurementGates with the same key,
+              or if repetitions is negative.
+      """
+    if not isinstance(program, qsimc.QSimCircuit):
+      program = qsimc.QSimCircuit(program, device=program.device)
+
+    if not program.are_all_measurements_terminal():
+      raise NotImplementedError("support for non-terminal measurement is not yet implemented")
+
+    measurement_ops = [
+      op for _, op, _ in program.findall_operations_with_gate_type(cirq.MeasurementGate)
+    ]
+
+    # Computes
+    # - the list of qubits to be measured
+    # - the start (inclusive) and end (exclusive) indices of each measurement
+    # - a mapping from measurement key to measurement gate
+    measured_qubits = []  # type: List[ops.Qid]
+    bounds = {}  # type: Dict[str, Tuple]
+    meas_ops = {}  # type: Dict[str, cirq.MeasurementGate]
+    current_index = 0
+    for op in measurement_ops:
+      gate = op.gate
+      key = cirq.measurement_key(gate)
+      meas_ops[key] = gate
+      if key in bounds:
+        raise ValueError("Duplicate MeasurementGate with key {}".format(key))
+      bounds[key] = (current_index, current_index + len(op.qubits))
+      measured_qubits.extend(op.qubits)
+      current_index += len(op.qubits)
+
+    options = {}
+    options.update(self.qsim_options)
+    options['c'] = program.translate_cirq_to_qsim(cirq.QubitOrder.DEFAULT)
+
+    # Compute indices of measured qubits
+    ordered_qubits = cirq.QubitOrder.DEFAULT.order_for(program.all_qubits())
+
+    # qsim numbers qubits in reverse order from cirq
+    ordered_qubits = list(reversed(ordered_qubits))
+
+    qubit_map = {
+      qubit: index for index, qubit in enumerate(ordered_qubits)
+    }
+
+    # Compute samples of the state vector and updates the PRNG key so future
+    # sampling executions stay random.
+    # simulation_args = utils.prep_simulation_params(
+    #     program,
+    #     qubits,
+    #     initial_state=0,
+    # )
+    # state_vector = jax.jit(
+    #     self.jax_simulate_wavefunction(),
+    #     static_argnums=2,
+    # )(*simulation_args)
+    #
+    # indexed_sample, self._prng_key = _sample_state_vector(
+    #     state_vector,
+    #     indices,
+    #     self._prng_key,
+    #     repetitions,
+    # )
+    #
+    # # Applies invert masks of all measurement gates.
+    # results = {}
+    # for k, (s, e) in bounds.items():
+    #   before_invert_mask = indexed_sample[:, s:e]
+    #   results[k] = before_invert_mask ^ (
+    #       np.logical_and(before_invert_mask < 2,
+    #                      meas_ops[k].full_invert_mask()))
+    # return results
+
+    qsim_state = qsim.qsim_simulate_fullstate(options)
+    assert qsim_state.dtype == np.float32
+    assert qsim_state.ndim == 1
+    final_state = QSimSimulatorState(qsim_state, qubit_map)
+
+    indices = [qubit_map[qubit] for qubit in measured_qubits]
+
+    trial_results = QSimSimulatorTrialResult(params={},
+                                             measurements=meas_ops,
+                                             final_simulator_state=final_state)
+    return trial_results
+
+
 
   def compute_amplitudes_sweep(
       self,
@@ -122,7 +258,7 @@ class QSimSimulator(SimulatesAmplitudes, SimulatesFinalState):
     """Simulates the supplied Circuit.
 
       This method returns a result which allows access to the entire
-      wave function. In contrast to simulate, this allows for sweeping
+      state vector. In contrast to simulate, this allows for sweeping
       over different parameter values.
 
       Args:
