@@ -65,7 +65,7 @@ class QSimSimulator(SimulatesSamples, SimulatesAmplitudes, SimulatesFinalState):
 
   def _run(
         self,
-        program: circuits.Circuit,
+        circuit: circuits.Circuit,
         param_resolver: study.ParamResolver,
         repetitions: int
   ) -> Dict[str, np.ndarray]:
@@ -84,7 +84,7 @@ class QSimSimulator(SimulatesSamples, SimulatesAmplitudes, SimulatesFinalState):
         by the qubits being measured.)
     """
     param_resolver = param_resolver or study.ParamResolver({})
-    solved_circuit = protocols.resolve_parameters(program, param_resolver)
+    solved_circuit = protocols.resolve_parameters(circuit, param_resolver)
 
     return self._sample_measurement_ops(solved_circuit, repetitions)
 
@@ -121,7 +121,7 @@ class QSimSimulator(SimulatesSamples, SimulatesAmplitudes, SimulatesFinalState):
       raise NotImplementedError("support for non-terminal measurement is not yet implemented")
 
     measurement_ops = [
-      op for _, op, _ in program.findall_operations_with_gate_type(cirq.MeasurementGate)
+      op for _, op, _ in program.findall_operations_with_gate_type(ops.MeasurementGate)
     ]
 
     # Computes
@@ -130,11 +130,11 @@ class QSimSimulator(SimulatesSamples, SimulatesAmplitudes, SimulatesFinalState):
     # - a mapping from measurement key to measurement gate
     measured_qubits = []  # type: List[ops.Qid]
     bounds = {}  # type: Dict[str, Tuple]
-    meas_ops = {}  # type: Dict[str, cirq.MeasurementGate]
+    meas_ops = {}  # type: Dict[str, ops.MeasurementGate]
     current_index = 0
     for op in measurement_ops:
       gate = op.gate
-      key = cirq.measurement_key(gate)
+      key = protocols.measurement_key(gate)
       meas_ops[key] = gate
       if key in bounds:
         raise ValueError("Duplicate MeasurementGate with key {}".format(key))
@@ -144,10 +144,10 @@ class QSimSimulator(SimulatesSamples, SimulatesAmplitudes, SimulatesFinalState):
 
     options = {}
     options.update(self.qsim_options)
-    options['c'] = program.translate_cirq_to_qsim(cirq.QubitOrder.DEFAULT)
+    options['c'] = program.translate_cirq_to_qsim(ops.QubitOrder.DEFAULT)
 
     # Compute indices of measured qubits
-    ordered_qubits = cirq.QubitOrder.DEFAULT.order_for(program.all_qubits())
+    ordered_qubits = ops.QubitOrder.DEFAULT.order_for(program.all_qubits())
 
     # qsim numbers qubits in reverse order from cirq
     ordered_qubits = list(reversed(ordered_qubits))
