@@ -96,7 +96,7 @@ class MainTest(unittest.TestCase):
     assert cirq.linalg.allclose_up_to_global_phase(
         result.state_vector(), cirq_result.state_vector())
 
-  def test_cirq_qsim_run():
+  def test_cirq_qsim_run(self):
     # Pick qubits.
     a, b, c, d = [
         cirq.GridQubit(0, 0),
@@ -119,7 +119,9 @@ class MainTest(unittest.TestCase):
     )
 
     qsimSim = qsimcirq.QSimSimulator()
+    assert isinstance(qsimSim, cirq.SimulatesSamples)
     result = qsimSim.run(cirq_circuit, repetitions=5)
+    # result = qsimSim.run_sweep(cirq_circuit, repetitions=5)
     print(result)
 
   def test_matrix1_gate(self):
