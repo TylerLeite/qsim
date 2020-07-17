@@ -68,52 +68,52 @@ class QSimSimulator(SimulatesSamples, SimulatesAmplitudes, SimulatesFinalState):
         program: circuits.Circuit,
         param_resolver: study.ParamResolver,
         repetitions: int
-    ) -> Dict[str, np.ndarray]:
-      """Run a simulation, mimicking quantum hardware.
+  ) -> Dict[str, np.ndarray]:
+    """Run a simulation, mimicking quantum hardware.
 
-      Args:
-          program: The circuit to simulate.
-          param_resolver: Parameters to run with the program.
-          repetitions: Number of times to repeat the run.
+    Args:
+        program: The circuit to simulate.
+        param_resolver: Parameters to run with the program.
+        repetitions: Number of times to repeat the run.
 
-      Returns:
-          A dictionary from measurement gate key to measurement
-          results. Measurement results are stored in a 2-dimensional
-          numpy array, the first dimension corresponding to the repetition
-          and the second to the actual boolean measurement results (ordered
-          by the qubits being measured.)
-      """
+    Returns:
+        A dictionary from measurement gate key to measurement
+        results. Measurement results are stored in a 2-dimensional
+        numpy array, the first dimension corresponding to the repetition
+        and the second to the actual boolean measurement results (ordered
+        by the qubits being measured.)
+    """
     param_resolver = param_resolver or study.ParamResolver({})
     solved_circuit = protocols.resolve_parameters(program, param_resolver)
 
     return self._sample_measurement_ops(solved_circuit, repetitions)
 
   def _sample_measurement_ops(
-      self,
-      program: circuits.Circuit,
-      repetitions: int = 1,
-    ) -> Dict[str, np.ndarray]:
-      """Samples from the circuit at all measurement gates.
+    self,
+    program: circuits.Circuit,
+    repetitions: int = 1,
+  ) -> Dict[str, np.ndarray]:
+    """Samples from the circuit at all measurement gates.
 
-      All MeasurementGates must be terminal.
-      Note that this does not collapse the wave function.
+    All MeasurementGates must be terminal.
+    Note that this does not collapse the wave function.
 
-      Args:
-          program: The circuit to sample from.
-          repetitions: The number of samples to take.
+    Args:
+        program: The circuit to sample from.
+        repetitions: The number of samples to take.
 
-      Returns:
-          A dictionary from measurement gate key to measurement
-          results. Measurement results are stored in a 2-dimensional
-          numpy array, the first dimension corresponding to the repetition
-          and the second to the actual boolean measurement results (ordered
-          by the qubits being measured.)
-      Raises:
-          NotImplementedError: If there are non-terminal measurements in the
-              circuit.
-          ValueError: If there are multiple MeasurementGates with the same key,
-              or if repetitions is negative.
-      """
+    Returns:
+        A dictionary from measurement gate key to measurement
+        results. Measurement results are stored in a 2-dimensional
+        numpy array, the first dimension corresponding to the repetition
+        and the second to the actual boolean measurement results (ordered
+        by the qubits being measured.)
+    Raises:
+        NotImplementedError: If there are non-terminal measurements in the
+            circuit.
+        ValueError: If there are multiple MeasurementGates with the same key,
+            or if repetitions is negative.
+    """
     if not isinstance(program, qsimc.QSimCircuit):
       program = qsimc.QSimCircuit(program, device=program.device)
 
@@ -195,8 +195,6 @@ class QSimSimulator(SimulatesSamples, SimulatesAmplitudes, SimulatesFinalState):
                                              measurements=meas_ops,
                                              final_simulator_state=final_state)
     return trial_results
-
-
 
   def compute_amplitudes_sweep(
       self,
