@@ -142,32 +142,28 @@ class QSimSimulator(SimulatesSamples, SimulatesAmplitudes, SimulatesFinalState):
       measured_qubits.extend(op.qubits)
       current_index += len(op.qubits)
 
+    # Set qsim options
     options = {}
     options.update(self.qsim_options)
     options['c'] = program.translate_cirq_to_qsim(ops.QubitOrder.DEFAULT)
 
     # Compute indices of measured qubits
     ordered_qubits = ops.QubitOrder.DEFAULT.order_for(program.all_qubits())
-
-    # qsim numbers qubits in reverse order from cirq
     ordered_qubits = list(reversed(ordered_qubits))
 
     qubit_map = {
       qubit: index for index, qubit in enumerate(ordered_qubits)
     }
 
-    # Compute samples of the state vector and updates the PRNG key so future
-    # sampling executions stay random.
-    # simulation_args = utils.prep_simulation_params(
-    #     program,
-    #     qubits,
-    #     initial_state=0,
-    # )
-    # state_vector = jax.jit(
-    #     self.jax_simulate_wavefunction(),
-    #     static_argnums=2,
-    # )(*simulation_args)
-    #
+    # Simulate
+    qsim_state = qsim.qsim_simulate_fullstate(options)
+    assert qsim_state.dtype == np.float32
+    assert qsim_state.ndim == 1
+    final_state = QSimSimulatorState(qsim_state, qubit_map)
+
+    # Measure
+    indices = [qubit_map[qubit] for qubit in measured_qubits]
+
     # indexed_sample, self._prng_key = _sample_state_vector(
     #     state_vector,
     #     indices,
@@ -183,13 +179,6 @@ class QSimSimulator(SimulatesSamples, SimulatesAmplitudes, SimulatesFinalState):
     #       np.logical_and(before_invert_mask < 2,
     #                      meas_ops[k].full_invert_mask()))
     # return results
-
-    qsim_state = qsim.qsim_simulate_fullstate(options)
-    assert qsim_state.dtype == np.float32
-    assert qsim_state.ndim == 1
-    final_state = QSimSimulatorState(qsim_state, qubit_map)
-
-    indices = [qubit_map[qubit] for qubit in measured_qubits]
 
 
     trial_results = QSimSimulatorTrialResult(params={},
