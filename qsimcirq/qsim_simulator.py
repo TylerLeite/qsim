@@ -191,6 +191,7 @@ class QSimSimulator(SimulatesSamples, SimulatesAmplitudes, SimulatesFinalState):
 
     indices = [qubit_map[qubit] for qubit in measured_qubits]
 
+
     trial_results = QSimSimulatorTrialResult(params={},
                                              measurements=meas_ops,
                                              final_simulator_state=final_state)
