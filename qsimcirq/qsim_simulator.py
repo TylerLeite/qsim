@@ -163,6 +163,7 @@ class QSimSimulator(SimulatesSamples, SimulatesAmplitudes, SimulatesFinalState):
 
     # Measure
     indices = [qubit_map[qubit] for qubit in measured_qubits]
+    print(state_vector, indices)
 
     # indexed_sample, self._prng_key = _sample_state_vector(
     #     state_vector,
@@ -181,10 +182,79 @@ class QSimSimulator(SimulatesSamples, SimulatesAmplitudes, SimulatesFinalState):
     # return results
 
 
+    # def _sample_state_vector(state: jnp.ndarray,
+    #                          measure_indices: List[int],
+    #                          prng_key: jnp.array,
+    #                          repetitions: int = 1) -> Tuple[jnp.ndarray, Any]:
+    #   """Helper function to sample from the given state."""
+    #
+    #   if repetitions < 0:
+    #     raise ValueError(
+    #         "Number of repetitions cannot be negative. Was {}".format(repetitions))
+    #   num_qubits = int(state.size).bit_length() - 1
+    #   state_shape = (2,) * num_qubits
+    #
+    #   if repetitions == 0 or not measure_indices:
+    #     return jnp.zeros(shape=(repetitions, len(measure_indices)), dtype=jnp.uint8)
+    #
+    #   # Calculate the measurement probabilities.
+    #   probs = _probs(state, measure_indices, num_qubits)
+    #
+    #   # Sample over the probability distribution.
+    #   result, new_prng_key = _choice(prng_key, repetitions, probs)
+    #   # Convert to individual qubit measurements.
+    #   return jnp.asarray([
+    #       cirq.value.big_endian_int_to_digits(sample, base=state_shape)
+    #       for sample in result
+    #   ], dtype=jnp.uint8), new_prng_key
+    #
+    #
+    # def _choice(prng_key, repetitions, probabilities):
+    #   """Replacement for np.random.choice()."""
+    #   new_prng_key, *subkeys = jax.random.split(prng_key, repetitions + 1)
+    #   samples = [jax.random.uniform(k) for k in subkeys]
+    #
+    #   # Build CDF
+    #   buckets = jnp.cumsum(probabilities)
+    #   buckets /= buckets[-1]  # For normalization
+    #
+    #   # Find the state that matches the uniform sample.
+    #   results = []
+    #   for sample in samples:
+    #     results.append(jnp.sum(buckets <= sample))
+    #   return results, new_prng_key
+
+    # def _probs(state: jnp.ndarray, indices: List[int],
+    #            num_qubits: int) -> jnp.ndarray:
+    #   """Returns the probabilities for a measurement on the given indices."""
+    #   shape = (2,) * num_qubits
+    #   tensor = jnp.reshape(state, shape)
+    #   # Calculate the probabilities for measuring the particular results.
+    #   if len(indices) == num_qubits:
+    #     # We're measuring every qubit, so no need for fancy indexing
+    #     probs = jnp.abs(tensor)**2
+    #     probs = jnp.transpose(probs, indices)
+    #     probs = jnp.reshape(probs, int(jnp.prod(probs.shape)))
+    #   else:
+    #     # Fancy indexing required
+    #     probs = []
+    #     meas_shape = tuple(shape[i] for i in indices)
+    #     for b in range(jnp.prod(meas_shape, dtype=int)):
+    #       tensor_ind = cirq.linalg.slice_for_qubits_equal_to(
+    #           indices, num_qubits=num_qubits, big_endian_qureg_value=b)
+    #       probs.append(tensor[tensor_ind])
+    #     probs = jnp.abs(probs)**2
+    #     probs = jnp.sum(probs, axis=tuple(range(1, len(probs.shape))))
+    #
+    #   # To deal with rounding issues, ensure that the probabilities sum to 1.
+    #   probs /= jnp.sum(probs)
+    #   return probs
+
+
     trial_results = QSimSimulatorTrialResult(params={},
                                              measurements=meas_ops,
                                              final_simulator_state=final_state)
-    return trial_results
+    return meas_ops
 
   def compute_amplitudes_sweep(
       self,
