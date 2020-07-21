@@ -157,100 +157,25 @@ class QSimSimulator(SimulatesSamples, SimulatesAmplitudes, SimulatesFinalState):
     }
 
     # Simulate
-    qsim_state = qsim.qsim_simulate_fullstate(options)
-    assert qsim_state.dtype == np.float32
-    assert qsim_state.ndim == 1
-    final_state = QSimSimulatorState(qsim_state, qubit_map)
-    state_vector = final_state.state_vector
-
-    # Measure
-    indices = [qubit_map[qubit] for qubit in measured_qubits]
-    print(state_vector, indices)
-
-
-    def _sample_state_vector(state: np.ndarray,
-                             measure_indices: List[int],
-                             prng_key: np.array,
-                             repetitions: int = 1) -> Tuple[np.ndarray, Any]:
-      """Helper function to sample from the given state."""
-
-      if repetitions < 0:
-        raise ValueError(
-            "Number of repetitions cannot be negative. Was {}".format(repetitions))
-      num_qubits = int(state.size).bit_length() - 1
-      state_shape = (2,) * num_qubits
-
-      if repetitions == 0 or not measure_indices:
-        return np.zeros(shape=(repetitions, len(measure_indices)), dtype=np.uint8)
-
-      # Calculate the measurement probabilities.
-      probs = _probs(state, measure_indices, num_qubits)
-
-      # Sample over the probability distribution.
-      result, new_prng_key = _choice(prng_key, repetitions, probs)
-      # Convert to individual qubit measurements.
-      return np.asarray([
-          value.big_endian_int_to_digits(sample, base=state_shape)
-          for sample in result
-      ], dtype=np.uint8), new_prng_key
-
-
-    def _choice(prng_key, repetitions, probabilities):
-      """Replacement for np.random.choice()."""
-      new_prng_key, *subkeys = jax.random.split(prng_key, repetitions + 1)
-      samples = [jax.random.uniform(k) for k in subkeys]
-
-      # Build CDF
-      buckets = np.cumsum(probabilities)
-      buckets /= buckets[-1]  # For normalization
-
-      # Find the state that matches the uniform sample.
-      results = []
-      for sample in samples:
-        results.append(np.sum(buckets <= sample))
-      return results, new_prng_key
-
-    def _probs(state: np.ndarray, indices: List[int],
-               num_qubits: int) -> np.ndarray:
-      """Returns the probabilities for a measurement on the given indices."""
-      shape = (2,) * num_qubits
-      tensor = np.reshape(state, shape)
-      # Calculate the probabilities for measuring the particular results.
-      if len(indices) == num_qubits:
-        # We're measuring every qubit, so no need for fancy indexing
-        probs = np.abs(tensor)**2
-        probs = np.transpose(probs, indices)
-        probs = np.reshape(probs, int(np.prod(probs.shape)))
-      else:
-        # Fancy indexing required
-        probs = []
-        meas_shape = tuple(shape[i] for i in indices)
-        for b in range(np.prod(meas_shape, dtype=int)):
-          tensor_ind = linalg.slice_for_qubits_equal_to(
-              indices, num_qubits=num_qubits, big_endian_qureg_value=b)
-          probs.append(tensor[tensor_ind])
-        probs = np.abs(probs)**2
-        probs = np.sum(probs, axis=tuple(range(1, len(probs.shape))))
-
-      # To deal with rounding issues, ensure that the probabilities sum to 1.
-      probs /= np.sum(probs)
-      return probs
-
-    indexed_sample, _prng_key = _sample_state_vector(
-        state_vector,
-        indices,
-        _prng_key,
-        repetitions,
-    )
+    amplitudes = qsim.qsim_simulate(options)
+    # assert qsim_state.dtype == np.float32
+    # assert qsim_state.ndim == 1
+    # final_state = QSimSimulatorState(qsim_state, qubit_map)
+    # state_vector = final_state.state_vector
+    #
+    # # Measure
+    # indices = [qubit_map[qubit] for qubit in measured_qubits]
+    print(amplitudes)
+    return amplitudes
 
     # Applies invert masks of all measurement gates.
-    results = {}
-    for k, (s, e) in bounds.items():
-      before_invert_mask = indexed_sample[:, s:e]
-      results[k] = before_invert_mask ^ (
-          np.logical_and(before_invert_mask < 2,
-                         meas_ops[k].full_invert_mask()))
-    return results
+    # results = {}
+    # for k, (s, e) in bounds.items():
+    #   before_invert_mask = indexed_sample[:, s:e]
+    #   results[k] = before_invert_mask ^ (
+    #       np.logical_and(before_invert_mask < 2,
+    #                      meas_ops[k].full_invert_mask()))
+    # return results
 
     # trial_results = QSimSimulatorTrialResult(params={},
     #                                          measurements=meas_ops,
