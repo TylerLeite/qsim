@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Any, Dict, List, Sequence
+from typing import Any, Dict, List, Sequence, Tuple
 
 from cirq import (
   circuits,
@@ -161,6 +161,7 @@ class QSimSimulator(SimulatesSamples, SimulatesAmplitudes, SimulatesFinalState):
     assert qsim_state.dtype == np.float32
     assert qsim_state.ndim == 1
     final_state = QSimSimulatorState(qsim_state, qubit_map)
+    state_vector = final_state.state_vector
 
     # Measure
     indices = [qubit_map[qubit] for qubit in measured_qubits]
@@ -235,10 +236,10 @@ class QSimSimulator(SimulatesSamples, SimulatesAmplitudes, SimulatesFinalState):
       probs /= np.sum(probs)
       return probs
 
-    indexed_sample, self._prng_key = _sample_state_vector(
+    indexed_sample, _prng_key = _sample_state_vector(
         state_vector,
         indices,
-        self._prng_key,
+        _prng_key,
         repetitions,
     )
 
