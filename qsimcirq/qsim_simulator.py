@@ -78,23 +78,19 @@ class QSimSimulator(SimulatesSamples, SimulatesAmplitudes, SimulatesFinalState):
         repetitions: Number of times to repeat the run.
 
     Returns:
-        A dictionary from measurement gate key to measurement
-        results. Measurement results are stored in a 2-dimensional
-        numpy array, the first dimension corresponding to the repetition
-        and the second to the actual boolean measurement results (ordered
-        by the qubits being measured.)
+        A list of bitstrings measured at the end of each repetition
     """
     param_resolver = param_resolver or study.ParamResolver({})
     solved_circuit = protocols.resolve_parameters(circuit, param_resolver)
 
-    return self._sample_measurement_ops(solved_circuit, repetitions)
+    return self._sample_bitstrings(solved_circuit, repetitions)
 
-  def _sample_measurement_ops(
+  def _sample_bitstrings(
     self,
     program: circuits.Circuit,
     repetitions: int = 1,
-  ) -> Dict[str, np.ndarray]:
-    """Samples from the circuit at all measurement gates.
+  ) -> List[str]:
+    """Samples bitstrings from the circuit
 
     All MeasurementGates must be terminal.
     Note that this does not collapse the wave function.
@@ -104,11 +100,8 @@ class QSimSimulator(SimulatesSamples, SimulatesAmplitudes, SimulatesFinalState):
         repetitions: The number of samples to take.
 
     Returns:
-        A dictionary from measurement gate key to measurement
-        results. Measurement results are stored in a 2-dimensional
-        numpy array, the first dimension corresponding to the repetition
-        and the second to the actual boolean measurement results (ordered
-        by the qubits being measured.)
+        A list of bitstrings measured at the end of each repetition
+
     Raises:
         NotImplementedError: If there are non-terminal measurements in the
             circuit.
@@ -121,28 +114,6 @@ class QSimSimulator(SimulatesSamples, SimulatesAmplitudes, SimulatesFinalState):
     if not program.are_all_measurements_terminal():
       raise NotImplementedError("support for non-terminal measurement is not yet implemented")
 
-    measurement_ops = [
-      op for _, op, _ in program.findall_operations_with_gate_type(ops.MeasurementGate)
-    ]
-
-    # Computes
-    # - the list of qubits to be measured
-    # - the start (inclusive) and end (exclusive) indices of each measurement
-    # - a mapping from measurement key to measurement gate
-    measured_qubits = []  # type: List[ops.Qid]
-    bounds = {}  # type: Dict[str, Tuple]
-    meas_ops = {}  # type: Dict[str, ops.MeasurementGate]
-    current_index = 0
-    for op in measurement_ops:
-      gate = op.gate
-      key = protocols.measurement_key(gate)
-      meas_ops[key] = gate
-      if key in bounds:
-        raise ValueError("Duplicate MeasurementGate with key {}".format(key))
-      bounds[key] = (current_index, current_index + len(op.qubits))
-      measured_qubits.extend(op.qubits)
-      current_index += len(op.qubits)
-
     # Compute indices of measured qubits
     ordered_qubits = ops.QubitOrder.DEFAULT.order_for(program.all_qubits())
     ordered_qubits = list(reversed(ordered_qubits))
@@ -152,6 +123,7 @@ class QSimSimulator(SimulatesSamples, SimulatesAmplitudes, SimulatesFinalState):
     }
 
     # Want to check all bitstrings
+    n_qubits = len(program.all_qubits())
     bitstrings = [i for i in range(2**n_qubits)]
     bitstrings = [format(bs, 'b').zfill(n_qubits)[::-1] for bs in bitstrings]
 
@@ -159,14 +131,18 @@ class QSimSimulator(SimulatesSamples, SimulatesAmplitudes, SimulatesFinalState):
     options = {}
     options.update(self.qsim_options)
     options['c'] = program.translate_cirq_to_qsim(ops.QubitOrder.DEFAULT)
-    options['i'] = '\n'.join(bitstrings)
 
-    # Simulate
-    amplitudes = qsim.qsim_simulate(options)
-    print(amplitudes)
+    results = []
+    for i in range(repetitions):
+      qsim_state = qsim.qsim_simulate_fullstate(options)
+      amplitudes = QSimSimulatorState(qsim_state, qubit_map)
 
-    # Convert amplitudes to probabilities
-    return amplitudes
+      # Convert amplitudes to probabilities
+      probabilities = [(a*complex(a.real, -a.imag)).real for a in amplitudes]
+
+      resulta.append(np.random.choice(bitstrings, p=probabilities))
+
+    return results
 
 
   def compute_amplitudes_sweep(
