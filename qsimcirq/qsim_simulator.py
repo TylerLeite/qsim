@@ -135,12 +135,14 @@ class QSimSimulator(SimulatesSamples, SimulatesAmplitudes, SimulatesFinalState):
     results = []
     for i in range(repetitions):
       qsim_state = qsim.qsim_simulate_fullstate(options)
-      amplitudes = QSimSimulatorState(qsim_state, qubit_map)
+      amplitudes = QSimSimulatorState(qsim_state, qubit_map).state_vector
 
       # Convert amplitudes to probabilities
-      probabilities = [(a*complex(a.real, -a.imag)).real for a in amplitudes]
+      probabilities = np.array([(a*complex(a.real, -a.imag)).real for a in amplitudes])
+      probabilities /= probabilities.sum()
+      print(probabilities)
 
-      resulta.append(np.random.choice(bitstrings, p=probabilities))
+      results.append(np.random.choice(bitstrings, p=probabilities))
 
     return results
 
