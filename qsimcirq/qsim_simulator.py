@@ -143,11 +143,6 @@ class QSimSimulator(SimulatesSamples, SimulatesAmplitudes, SimulatesFinalState):
       measured_qubits.extend(op.qubits)
       current_index += len(op.qubits)
 
-    # Set qsim options
-    options = {}
-    options.update(self.qsim_options)
-    options['c'] = program.translate_cirq_to_qsim(ops.QubitOrder.DEFAULT)
-
     # Compute indices of measured qubits
     ordered_qubits = ops.QubitOrder.DEFAULT.order_for(program.all_qubits())
     ordered_qubits = list(reversed(ordered_qubits))
@@ -156,31 +151,23 @@ class QSimSimulator(SimulatesSamples, SimulatesAmplitudes, SimulatesFinalState):
       qubit: index for index, qubit in enumerate(ordered_qubits)
     }
 
+    # Want to check all bitstrings
+    bitstrings = [i for i in range(2**n_qubits)]
+    bitstrings = [format(bs, 'b').zfill(n_qubits)[::-1] for bs in bitstrings]
+
+    # Set qsim options
+    options = {}
+    options.update(self.qsim_options)
+    options['c'] = program.translate_cirq_to_qsim(ops.QubitOrder.DEFAULT)
+    options['i'] = '\n'.join(bitstrings)
+
     # Simulate
     amplitudes = qsim.qsim_simulate(options)
-    # assert qsim_state.dtype == np.float32
-    # assert qsim_state.ndim == 1
-    # final_state = QSimSimulatorState(qsim_state, qubit_map)
-    # state_vector = final_state.state_vector
-    #
-    # # Measure
-    # indices = [qubit_map[qubit] for qubit in measured_qubits]
     print(amplitudes)
+
+    # Convert amplitudes to probabilities
     return amplitudes
 
-    # Applies invert masks of all measurement gates.
-    # results = {}
-    # for k, (s, e) in bounds.items():
-    #   before_invert_mask = indexed_sample[:, s:e]
-    #   results[k] = before_invert_mask ^ (
-    #       np.logical_and(before_invert_mask < 2,
-    #                      meas_ops[k].full_invert_mask()))
-    # return results
-
-    # trial_results = QSimSimulatorTrialResult(params={},
-    #                                          measurements=meas_ops,
-    #                                          final_simulator_state=final_state)
-    # return trial_result.measurements
 
   def compute_amplitudes_sweep(
       self,
