@@ -78,7 +78,8 @@ class QSimSimulator(SimulatesSamples, SimulatesAmplitudes, SimulatesFinalState):
         repetitions: Number of times to repeat the run.
 
     Returns:
-        A list of bitstrings measured at the end of each repetition
+        A dictionary from measurement gate key to measurement
+        results.
     """
     param_resolver = param_resolver or study.ParamResolver({})
     solved_circuit = protocols.resolve_parameters(circuit, param_resolver)
@@ -89,7 +90,7 @@ class QSimSimulator(SimulatesSamples, SimulatesAmplitudes, SimulatesFinalState):
     self,
     program: circuits.Circuit,
     repetitions: int = 1,
-  ) -> List[str]:
+  ) -> Dict[str, np.ndarray]:
     """Samples bitstrings from the circuit
 
     All MeasurementGates must be terminal.
@@ -100,7 +101,11 @@ class QSimSimulator(SimulatesSamples, SimulatesAmplitudes, SimulatesFinalState):
         repetitions: The number of samples to take.
 
     Returns:
-        A list of bitstrings measured at the end of each repetition
+        A dictionary from measurement gate key to measurement
+        results. Measurement results are stored in a 2-dimensional
+        numpy array, the first dimension corresponding to the repetition
+        and the second to the actual boolean measurement results (ordered
+        by the qubits being measured.)
 
     Raises:
         NotImplementedError: If there are non-terminal measurements in the
@@ -122,28 +127,58 @@ class QSimSimulator(SimulatesSamples, SimulatesAmplitudes, SimulatesFinalState):
       qubit: index for index, qubit in enumerate(ordered_qubits)
     }
 
+    # Computes
+    # - the list of qubits to be measured
+    # - the start (inclusive) and end (exclusive) indices of each measurement
+    # - a mapping from measurement key to measurement gate
+    measured_qubits = []  # type: List[ops.Qid]
+    bounds = {}  # type: Dict[str, Tuple]
+    meas_ops = {}  # type: Dict[str, cirq.MeasurementGate]
+    current_index = 0
+    for op in measurement_ops:
+      gate = op.gate
+      key = cirq.measurement_key(gate)
+      meas_ops[key] = gate
+      if key in bounds:
+        raise ValueError("Duplicate MeasurementGate with key {}".format(key))
+      bounds[key] = (current_index, current_index + len(op.qubits))
+      measured_qubits.extend(op.qubits)
+      current_index += len(op.qubits)
+
+    indices = [qubit_map[qubit] for qubit in measured_qubits]
+
     # Want to check all bitstrings
     n_qubits = len(program.all_qubits())
     bitstrings = [i for i in range(2**n_qubits)]
-    bitstrings = [format(bs, 'b').zfill(n_qubits)[::-1] for bs in bitstrings]
+    # bitstrings = [format(bs, 'b').zfill(n_qubits)[::-1] for bs in bitstrings]
 
     # Set qsim options
     options = {}
     options.update(self.qsim_options)
     options['c'] = program.translate_cirq_to_qsim(ops.QubitOrder.DEFAULT)
 
-    results = []
+    results = {}
+    for key, bound in bounds.items():
+      boundlen = bound[1]-bound[0]
+      results[key] = np.ndarray(shape=(repetitions, bound[1]-bound[0]), dtype=int)
+
     for i in range(repetitions):
       qsim_state = qsim.qsim_simulate_fullstate(options)
-      amplitudes = QSimSimulatorState(qsim_state, qubit_map).state_vector
+      amplitudes = QSimSimulatorState(qsim_state, qubit_map)
 
       # Convert amplitudes to probabilities
-      probabilities = np.array([(a*complex(a.real, -a.imag)).real for a in amplitudes])
+      probabilities = np.array(
+        [(a*complex(a.real, -a.imag)).real for a in amplitudes]
+      )
       probabilities /= probabilities.sum()
-      print(probabilities)
 
-      results.append(np.random.choice(bitstrings, p=probabilities))
+      result = np.random.choice(bitstrings, p=probabilities)
+      #0010
+      for key, bound in bounds.items():
+        for i in range(bound[0], bound[1]):
+          results[key][repetition][i] = str(result[i])
 
+    print(results)
     return results
 
 
