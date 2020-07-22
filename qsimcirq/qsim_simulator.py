@@ -153,7 +153,7 @@ class QSimSimulator(SimulatesSamples, SimulatesAmplitudes, SimulatesFinalState):
     # Want to check all bitstrings
     n_qubits = len(program.all_qubits())
     bitstrings = [i for i in range(2**n_qubits)]
-    # bitstrings = [format(bs, 'b').zfill(n_qubits)[::-1] for bs in bitstrings]
+    bitstrings = [format(bs, 'b').zfill(n_qubits)[::-1] for bs in bitstrings]
 
     # Set qsim options
     options = {}
@@ -167,7 +167,7 @@ class QSimSimulator(SimulatesSamples, SimulatesAmplitudes, SimulatesFinalState):
 
     for i in range(repetitions):
       qsim_state = qsim.qsim_simulate_fullstate(options)
-      amplitudes = QSimSimulatorState(qsim_state, qubit_map)
+      amplitudes = QSimSimulatorState(qsim_state, qubit_map).state_vector
 
       # Convert amplitudes to probabilities
       probabilities = np.array(
@@ -175,13 +175,12 @@ class QSimSimulator(SimulatesSamples, SimulatesAmplitudes, SimulatesFinalState):
       )
       probabilities /= probabilities.sum()
 
+      # format the bitstring in terms of measurement gates
       result = np.random.choice(bitstrings, p=probabilities)
-      #0010
       for key, bound in bounds.items():
-        for i in range(bound[0], bound[1]):
-          results[key][repetition][i] = str(result[i])
+        for j in range(bound[1]-bound[0]):
+          results[key][i][j] = int(result[bound[0]+j])
 
-    print(results)
     return results
 
 
