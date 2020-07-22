@@ -131,13 +131,16 @@ class QSimSimulator(SimulatesSamples, SimulatesAmplitudes, SimulatesFinalState):
     # - the list of qubits to be measured
     # - the start (inclusive) and end (exclusive) indices of each measurement
     # - a mapping from measurement key to measurement gate
+    measurement_ops = [
+      op for _, op, _ in program.findall_operations_with_gate_type(ops.MeasurementGate)
+    ]
     measured_qubits = []  # type: List[ops.Qid]
     bounds = {}  # type: Dict[str, Tuple]
     meas_ops = {}  # type: Dict[str, cirq.MeasurementGate]
     current_index = 0
     for op in measurement_ops:
       gate = op.gate
-      key = cirq.measurement_key(gate)
+      key = protocols.measurement_key(gate)
       meas_ops[key] = gate
       if key in bounds:
         raise ValueError("Duplicate MeasurementGate with key {}".format(key))
