@@ -124,26 +124,29 @@ class MainTest(unittest.TestCase):
       assert(value.shape == (5, 1))
 
   def test_qsim_run_vs_cirq_run(self):
-    # Simple circuit
-    a = cirq.GridQubit(0, 0)
-    b = cirq.GridQubit(0, 1)
-    c = cirq.GridQubit(0, 1)
-    d = cirq.GridQubit(0, 1)
+    # Simple circuit, want to check mapping of qubit(s) to their measurements
+    a, b, c, d = [
+      cirq.GridQubit(0, 0),
+      cirq.GridQubit(0, 1),
+      cirq.GridQubit(1, 0),
+      cirq.GridQubit(1, 1),
+    ]
     circuit = cirq.Circuit(
         cirq.X(b),
         cirq.CX(b, d),
-        cirq.measure(a, key='ma'),
-        cirq.measure(b, key='mb'),
-        cirq.measure(c, key='mb'),
-        cirq.measure(d, key='mb'),
+        cirq.measure(a, b, c, key='mabc'),
+        cirq.measure(d, key='md'),
     )
 
+    # run in cirq
     simulator = cirq.Simulator()
     cirq_result = simulator.run(circuit, repetitions=20)
 
+    # run in qsim
     qsim_simulator = qsimcirq.QSimSimulator()
     qsim_result = qsim_simulator.run(circuit, repetitions=20)
 
+    # are they the same?
     assert(qsim_result == cirq_result)
 
   def test_matrix1_gate(self):
