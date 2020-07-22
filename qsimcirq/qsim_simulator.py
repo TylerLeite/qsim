@@ -177,6 +177,10 @@ class QSimSimulator(SimulatesSamples, SimulatesAmplitudes, SimulatesFinalState):
 
       # format the bitstring in terms of measurement gates
       result = np.random.choice(bitstrings, p=probabilities)
+      print(bounds)
+      print(result)
+      print(bitstrings)
+      print(probabilities)
       for key, bound in bounds.items():
         for j in range(bound[1]-bound[0]):
           results[key][i][j] = int(result[bound[0]+j])
