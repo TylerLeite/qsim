@@ -104,7 +104,6 @@ class MainTest(unittest.TestCase):
         cirq.GridQubit(1, 1),
         cirq.GridQubit(1, 0)
     ]
-
     # Create a circuit
     cirq_circuit = cirq.Circuit(
         cirq.X(a)**0.5,  # Square root of X.
@@ -117,12 +116,35 @@ class MainTest(unittest.TestCase):
         cirq.measure(c, key='mc'),
         cirq.measure(d, key='md'),
     )
-
     qsimSim = qsimcirq.QSimSimulator()
     assert isinstance(qsimSim, cirq.SimulatesSamples)
+
     result = qsimSim.run(cirq_circuit, repetitions=5)
-    # result = qsimSim.run_sweep(cirq_circuit, repetitions=5)
-    print(result)
+    for key, value in result.measurements.items():
+      assert(value.shape == (5, 1))
+
+  def test_qsim_run_vs_cirq_run(self):
+    # Simple circuit
+    a = cirq.GridQubit(0, 0)
+    b = cirq.GridQubit(0, 1)
+    c = cirq.GridQubit(0, 1)
+    d = cirq.GridQubit(0, 1)
+    circuit = cirq.Circuit(
+        cirq.X(b),
+        cirq.CX(b, d),
+        cirq.measure(a, key='ma'),
+        cirq.measure(b, key='mb'),
+        cirq.measure(c, key='mb'),
+        cirq.measure(d, key='mb'),
+    )
+
+    simulator = cirq.Simulator()
+    cirq_result = simulator.run(circuit, repetitions=20)
+
+    qsim_simulator = qsimcirq.QSimSimulator()
+    qsim_result = qsim_simulator.run(circuit, repetitions=20)
+
+    assert(qsim_result == cirq_result)
 
   def test_matrix1_gate(self):
     q = cirq.LineQubit(0)

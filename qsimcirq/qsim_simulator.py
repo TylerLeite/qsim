@@ -153,7 +153,7 @@ class QSimSimulator(SimulatesSamples, SimulatesAmplitudes, SimulatesFinalState):
     # Want to check all bitstrings
     n_qubits = len(program.all_qubits())
     bitstrings = [i for i in range(2**n_qubits)]
-    bitstrings = [format(bs, 'b').zfill(n_qubits)[::-1] for bs in bitstrings]
+    bitstrings = [format(bs, 'b').zfill(n_qubits) for bs in bitstrings]
 
     # Set qsim options
     options = {}
