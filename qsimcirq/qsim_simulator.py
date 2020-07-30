@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Any, Dict, List, Sequence, Tuple
+from typing import Any, Dict, List, Sequence
 
 from cirq import (
   circuits,
@@ -54,7 +54,6 @@ class QSimSimulatorTrialResult(sim.WaveFunctionTrialResult):
 
 
 class QSimSimulator(SimulatesSamples, SimulatesAmplitudes, SimulatesFinalState):
-
   def __init__(self, qsim_options: dict = {}):
     if any(k in qsim_options for k in ('c', 'i')):
       raise ValueError(
@@ -72,40 +71,17 @@ class QSimSimulator(SimulatesSamples, SimulatesAmplitudes, SimulatesFinalState):
   ) -> Dict[str, np.ndarray]:
     """Run a simulation, mimicking quantum hardware.
 
+    All MeasurementGates must be terminal.
+    Note that this does not collapse the wave function.
+
     Args:
-        program: The circuit to simulate.
+        circuit: The circuit to simulate.
         param_resolver: Parameters to run with the program.
         repetitions: Number of times to repeat the run.
 
     Returns:
         A dictionary from measurement gate key to measurement
         results.
-    """
-    param_resolver = param_resolver or study.ParamResolver({})
-    solved_circuit = protocols.resolve_parameters(circuit, param_resolver)
-
-    return self._sample_bitstrings(solved_circuit, repetitions)
-
-  def _sample_bitstrings(
-    self,
-    program: circuits.Circuit,
-    repetitions: int = 1,
-  ) -> Dict[str, np.ndarray]:
-    """Samples bitstrings from the circuit
-
-    All MeasurementGates must be terminal.
-    Note that this does not collapse the wave function.
-
-    Args:
-        program: The circuit to sample from.
-        repetitions: The number of samples to take.
-
-    Returns:
-        A dictionary from measurement gate key to measurement
-        results. Measurement results are stored in a 2-dimensional
-        numpy array, the first dimension corresponding to the repetition
-        and the second to the actual boolean measurement results (ordered
-        by the qubits being measured.)
 
     Raises:
         NotImplementedError: If there are non-terminal measurements in the
@@ -113,6 +89,9 @@ class QSimSimulator(SimulatesSamples, SimulatesAmplitudes, SimulatesFinalState):
         ValueError: If there are multiple MeasurementGates with the same key,
             or if repetitions is negative.
     """
+    param_resolver = param_resolver or study.ParamResolver({})
+    program = protocols.resolve_parameters(circuit, param_resolver)
+
     if not isinstance(program, qsimc.QSimCircuit):
       program = qsimc.QSimCircuit(program, device=program.device)
 
@@ -165,19 +144,22 @@ class QSimSimulator(SimulatesSamples, SimulatesAmplitudes, SimulatesFinalState):
       boundlen = bound[1]-bound[0]
       results[key] = np.ndarray(shape=(repetitions, bound[1]-bound[0]), dtype=int)
 
-    for i in range(repetitions):
-      qsim_state = qsim.qsim_simulate_fullstate(options)
-      amplitudes = QSimSimulatorState(qsim_state, qubit_map).state_vector
+    # qsim_state = qsim.qsim_simulate_fullstate(options)
+    # amplitudes = QSimSimulatorState(qsim_state, qubit_map).state_vector
+    #
+    # for i in range(repetitions):
+    #   # Convert amplitudes to probabilities
+    #   probabilities = np.abs(amplitudes)**2
+    #   probabilities /= probabilities.sum()
+    #
+    #   # format the bitstring in terms of measurement gates
+    #   result = np.random.choice(bitstrings, p=probabilities)
+    #   for key, bound in bounds.items():
+    #     for j in range(bound[1]-bound[0]):
+    #       results[key][i][j] = int(result[bound[0]+j])
 
-      # Convert amplitudes to probabilities
-      probabilities = np.abs(amplitudes)**2
-      probabilities /= probabilities.sum()
-
-      # format the bitstring in terms of measurement gates
-      result = np.random.choice(bitstrings, p=probabilities)
-      for key, bound in bounds.items():
-        for j in range(bound[1]-bound[0]):
-          results[key][i][j] = int(result[bound[0]+j])
+    qsim_state = qsim.qsim_sample(options)
+    print(qsim_state)
 
     return results
 
